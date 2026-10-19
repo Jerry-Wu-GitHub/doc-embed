@@ -8,21 +8,31 @@
 - :func:`compare_images`：比较两张图片，按 soft 或 strict 模式返回相似度
   和是否相同的判定。
 - :class:`HybridMatcher`：在候选图片集合中做增量匹配。
+- :func:`compute_image_hashes`：只计算图片的 pHash/dHash，不加载 CNN 模型。
 - :func:`get_config`：获取全局配置。
 
-同时导出 :class:`SimilarityResult`、距离计算方法、相似度阈值和 embedding
-维度等常量和类型，便于调用方直接做向量比较。所有可配置项都支持通过
-环境变量或 ``.env`` 文件覆盖。
+同时导出 :class:`SimilarityResult`、:class:`ImageHashes`、距离计算方法、
+相似度阈值和 embedding 维度等常量和类型，便于调用方直接做向量比较与
+哈希预筛。所有可配置项都支持通过环境变量或 ``.env`` 文件覆盖。
 
 示例::
 
-    from doc_embed import compare_images, embed_image, DIFFERENCE_THRESHOLD, METRIC
+    from doc_embed import (
+        DIFFERENCE_THRESHOLD,
+        METRIC,
+        compare_images,
+        compute_image_hashes,
+        embed_image,
+    )
 
     with open("page.jpg", "rb") as file:
         vector = embed_image(file.read())
 
     result = compare_images(page_a_bytes, page_b_bytes, mode="strict")
     print(result.hybrid_score, result.same)
+
+    hashes = compute_image_hashes(page_a_bytes)
+    print(hashes.phash_bits.shape, hashes.dhash_bits.shape)
 """
 
 try:  # 作为包导入时使用相对导入
@@ -44,6 +54,7 @@ try:  # 作为包导入时使用相对导入
     from .embedding import embed_image
     from .hybrid import SimilarityResult
     from .matching import HybridMatcher, compare_images
+    from .signature import ImageHashes, compute_image_hashes
 except ImportError:  # 直接把项目根目录加入 sys.path 后导入
     from config import get_config
     from constants import (
@@ -63,6 +74,7 @@ except ImportError:  # 直接把项目根目录加入 sys.path 后导入
     from embedding import embed_image
     from hybrid import SimilarityResult
     from matching import HybridMatcher, compare_images
+    from signature import ImageHashes, compute_image_hashes
 
 
 # 距离计算方法：余弦距离。
@@ -73,6 +85,8 @@ __all__ = [
     "compare_images",
     "HybridMatcher",
     "SimilarityResult",
+    "compute_image_hashes",
+    "ImageHashes",
     "get_config",
     "METRIC",
     "SAME_THRESHOLD",

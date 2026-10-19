@@ -15,6 +15,7 @@ CNN 与感知哈希的 soft 融合分数，因此可以直接用余弦距离做�
 - 模型托管在魔搭社区，首次使用自动下载，之后直接命中本地缓存。
 - 支持环境变量和 `.env` 文件覆盖模型位置、线程数、融合权重等配置。
 - 公开 API 提供 `embed_image`、`compare_images`、`HybridMatcher`，支持 soft / strict 判定。
+- 提供 `compute_image_hashes`，只计算 pHash/dHash，不加载 CNN 模型，可用于快速预筛。
 
 ## 模型
 
@@ -107,6 +108,16 @@ print(result.hybrid_score)
 print(result.same)
 ```
 
+只计算感知哈希（不需要加载 CNN 模型）：
+
+```python
+from doc_embed import compute_image_hashes
+
+hashes = compute_image_hashes(image_a)
+print(hashes.phash_bits.shape)  # (256,)
+print(hashes.dhash_bits.shape)  # (256,)
+```
+
 ## API
 
 ### `embed_image`
@@ -138,6 +149,29 @@ def embed_image(
 - `TypeError`：输入不是 bytes / bytearray / memoryview；
 - `ValueError`：输入为空、无法解码为图片，或参数越界；
 - `FileNotFoundError` / `RuntimeError`：模型文件缺失、无效或下载失败。
+
+### `compute_image_hashes`
+
+```python
+def compute_image_hashes(
+    image_bytes: bytes | bytearray | memoryview,
+    *,
+    hash_size: int | None = None,
+) -> ImageHashes
+```
+
+只计算图片的感知哈希（pHash + dHash），不加载 CNN 模型，因此首次使用时也
+不需要下载模型。适合在向量检索前做快速预筛，或单独使用哈希特征。
+
+返回的 `ImageHashes` 包含：
+
+| 字段 | 说明 |
+| --- | --- |
+| `phash_bits` | pHash 位数组，默认形状 `(256,)` |
+| `dhash_bits` | dHash 位数组，默认形状 `(256,)` |
+
+位数组的元素为 `uint8`，取值为 0 或 1；两个位数组的相似度可以用
+`1 - 汉明距离 / 位数` 计算。
 
 ### `compare_images`
 

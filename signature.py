@@ -27,6 +27,18 @@ except ImportError:  # 直接把项目根目录加入 sys.path 后导入
 
 
 @dataclass(frozen=True)
+class ImageHashes:
+    """一张图片的感知哈希位数组。"""
+
+    phash_bits: np.ndarray = field(
+        metadata={"description": "pHash 位数组，展开为一维 0/1 序列。"}
+    )
+    dhash_bits: np.ndarray = field(
+        metadata={"description": "dHash 位数组，展开为一维 0/1 序列。"}
+    )
+
+
+@dataclass(frozen=True)
 class ImageSignature:
     """一张图片的 CNN embedding 与感知哈希特征。"""
 
@@ -69,6 +81,57 @@ def compute_dhash_bits(image: Image.Image, hash_size: int) -> np.ndarray:
     return hash_matrix.flatten().astype(np.uint8)
 
 
+def compute_image_hashes_from_image(
+    image: Image.Image,
+    hash_size: int,
+) -> ImageHashes:
+    """计算 Pillow 图片的 pHash 与 dHash 位数组。
+
+    Args:
+        image: Pillow 图片对象。
+        hash_size: 哈希矩阵的边长，总位数为 ``hash_size * hash_size``。
+
+    Returns:
+        包含 pHash 位和 dHash 位的特征对象。
+
+    Raises:
+        ValueError: ``hash_size`` 不是正整数。
+    """
+    if hash_size <= 0:
+        raise ValueError("hash_size 必须是正整数")
+    return ImageHashes(
+        phash_bits=compute_phash_bits(image, hash_size),
+        dhash_bits=compute_dhash_bits(image, hash_size),
+    )
+
+
+def compute_image_hashes(
+    image_bytes: ImageBytes,
+    *,
+    hash_size: int | None = None,
+) -> ImageHashes:
+    """只计算图片的感知哈希（pHash + dHash），不加载 CNN 模型。
+
+    该函数只做图片解码和哈希计算，适合在向量检索前做快速预筛，或在不需要
+    CNN embedding 的场景下单独使用。
+
+    Args:
+        image_bytes: 图片文件的原始字节。
+        hash_size: pHash/dHash 的边长；为空时使用全局配置，默认 16。
+
+    Returns:
+        包含 pHash 位和 dHash 位的特征对象。
+
+    Raises:
+        TypeError: 输入不是字节类型。
+        ValueError: 输入为空、无法解码为图片，或 ``hash_size`` 不是正整数。
+    """
+    config = get_config()
+    actual_hash_size = config.hash_size if hash_size is None else hash_size
+    image = decode_image(image_bytes)
+    return compute_image_hashes_from_image(image, actual_hash_size)
+
+
 def compute_signature(
     image_bytes: ImageBytes,
     *,
@@ -88,14 +151,12 @@ def compute_signature(
     """
     config = get_config()
     actual_hash_size = config.hash_size if hash_size is None else hash_size
-    if actual_hash_size <= 0:
-        raise ValueError("hash_size 必须是正整数")
-
     image = decode_image(image_bytes)
+    image_hashes = compute_image_hashes_from_image(image, actual_hash_size)
     return ImageSignature(
         embedding=compute_cnn_embedding_from_image(image),
-        phash_bits=compute_phash_bits(image, actual_hash_size),
-        dhash_bits=compute_dhash_bits(image, actual_hash_size),
+        phash_bits=image_hashes.phash_bits,
+        dhash_bits=image_hashes.dhash_bits,
     )
 
 
